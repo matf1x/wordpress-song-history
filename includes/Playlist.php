@@ -4,7 +4,7 @@ if( ! class_exists( 'Playlist' )) {
 
         // Setup handlers
         private $settings = array(
-            'songsApiUri' => 'https://www.radioaccent.be/api/song/playlist/',
+            'songsApiUri' => 'https://www.radioaccent.be/api/beta/song/playlist/',
             'showsApiUri' => 'https://www.radioaccent.be/api/shows/date/',
             'selectedDate' => '',
             'shows' => null,
