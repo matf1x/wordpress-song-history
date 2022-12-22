@@ -52,7 +52,7 @@ if( ! class_exists( 'Playlist' )) {
                 ), $atts, 'ra-playlist');
 
             // Set default date
-            $this->settings["selectedDate"] = ($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+            $this->settings["selectedDate"] = (!is_null($_GET['date'])) ? $_GET['date'] : date('Y-m-d');
 
             // Set the correct URL's for the API
             $this->settings['songsApiUri'] = $this->settings['songsApiUri'] . $this->settings['selectedDate'];
@@ -63,13 +63,27 @@ if( ! class_exists( 'Playlist' )) {
             
             // Get the songs from date
             $songsData = $this->getSongsFromDate();
+            $songs = json_decode($songsData['songs']);
+            $previews = array_splice($songs, 0, 20);
 
             // Check if there was an error
             if(!$songsData['status'])
                 $this->printError();
 
+            // Start the output of the previews
+            print('
+            <div class="previews">
+            ');
+
             // If there was no error, show the songs
-            $this->printSongs(json_decode($songsData['songs']));
+            $this->printPreviews($previews);
+
+            print('
+            </div>
+            <h3 class="moreSongs">Ook deze kwamen nog voorbij</h3>');
+
+            // If there was no error, show the songs
+            $this->printSongs($songs);
 
             // Create the closing tag
             print('
@@ -115,21 +129,34 @@ if( ! class_exists( 'Playlist' )) {
             ');
         }
 
-        /**
-         * Get the shows for a specific date
-         */
-        private function getShowsForDate() {
-            // This will be for later, because another plugin needs to be developed for this to work
+        private function printPreviews($songs) {
+
+            // Loop trough songs
+            foreach($songs as $song) {
+
+                print('
+                <div class="previewItem">
+                    <div class="timestamp">' . date('H:i', strtotime($song->startTime)) . '</div>
+                    <div class="previewImage">
+                        <img src="data:image/png;charset=utf-8;base64,' . $song->cover . '">
+                    </div>
+                    <div class="previewText">
+                        <h4>' . $song->artist . '</h4>
+                        <p>' . $song->title . '</p>
+                    </div>
+                </div>
+                ');
+
+            }
+
         }
 
         /**
          * Print the songs from a specified array
          */
         private function printSongs($songs) {
-
             // Loop trough songs
             foreach($songs as $song) {
-                
                 // Create element
                 print('
                 <div class="songItem">
@@ -137,7 +164,7 @@ if( ! class_exists( 'Playlist' )) {
                         ' . date('H:i', strtotime($song->startTime)) . '
                     </div>
                     <div class="songItem--cover">
-                        <img src="' . $song->cover . '">
+                        <img src="data:image/png;charset=utf-8;base64,' . $song->cover . '">
                     </div>
                     <div class="songItem--content">
                         <div>
@@ -147,14 +174,7 @@ if( ! class_exists( 'Playlist' )) {
                     </div>
                 </div>
                 ');
-
             }
-
-            // temp
-            /**print('<pre>');
-            print_r($songs);
-            print('</pre>');**/
-
         }
 
     }
