@@ -4,8 +4,8 @@ if( ! class_exists( 'Playlist' )) {
 
         // Setup handlers
         private $settings = array(
-            'songsApiUri' => 'https://www.radioaccent.be/api/beta/song/playlist/',
-            'showsApiUri' => 'https://www.radioaccent.be/api/shows/date/',
+            'songsApiUri' => 'https://www.radioaccent.be/api/v2/playlist/date/',
+            'showsApiUri' => 'https://www.radioaccent.be/api/v2/shows/date/',
             'selectedDate' => '',
             'shows' => null,
             'songs' => null
@@ -64,26 +64,13 @@ if( ! class_exists( 'Playlist' )) {
             // Get the songs from date
             $songsData = $this->getSongsFromDate();
             $songs = json_decode($songsData['songs']);
-            $previews = array_splice($songs, 0, 20);
 
             // Check if there was an error
-            if(!$songsData['status'])
+            if(!$songsData['status']){
                 $this->printError();
-
-            // Start the output of the previews
-            print('
-            <div class="previews">
-            ');
-
-            // If there was no error, show the songs
-            $this->printPreviews($previews);
-
-            print('
-            </div>
-            <h3 class="moreSongs">Ook deze kwamen nog voorbij</h3>');
-
-            // If there was no error, show the songs
-            $this->printSongs($songs);
+            } else {
+                $this->printSongs($songs);
+            }
 
             // Create the closing tag
             print('
@@ -128,29 +115,7 @@ if( ! class_exists( 'Playlist' )) {
             </div>
             ');
         }
-
-        private function printPreviews($songs) {
-
-            // Loop trough songs
-            foreach($songs as $song) {
-
-                print('
-                <div class="previewItem">
-                    <div class="timestamp">' . date('H:i', strtotime($song->startTime)) . '</div>
-                    <div class="previewImage">
-                        <img src="data:image/png;charset=utf-8;base64,' . $song->cover . '">
-                    </div>
-                    <div class="previewText">
-                        <h4>' . $song->artist . '</h4>
-                        <p>' . $song->title . '</p>
-                    </div>
-                </div>
-                ');
-
-            }
-
-        }
-
+        
         /**
          * Print the songs from a specified array
          */
