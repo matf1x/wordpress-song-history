@@ -1,12 +1,14 @@
 <?php
+// Include other classes
+require_once 'DB.php';
+
 if( ! class_exists( 'Playlist' )) {
-    class Playlist {
+    class Playlist extends DBPlaylist {
 
         // Setup handlers
         private $settings = array(
-            'songsApiUri' => 'https://www.radioaccent.be/api/v2/playlist/date/',
-            'showsApiUri' => 'https://www.radioaccent.be/api/v2/shows/date/',
-            'selectedDate' => '',
+            'selectedDay' => '',
+            'nextDay' => '',
             'shows' => null,
             'songs' => null
         );
@@ -29,9 +31,9 @@ if( ! class_exists( 'Playlist' )) {
             // Create a print
             print('
             <div class="playlistHeader">
-                <a href="./?date=' . date('Y-m-d', strtotime('- 1 days', strtotime($this->settings['selectedDate']))) . '"><i class="fas fa-angle-left previousBtn"></i></a>
-                <div>' . strftime('%A %e %B %Y', strtotime($this->settings['selectedDate'])) . '</div>
-                <a href="./?date=' . date('Y-m-d', strtotime('+ 1 days', strtotime($this->settings['selectedDate']))) . '"><i class="fas fa-angle-right nextBtn"></i></a>
+                <a href="./?date=' . date('Y-m-d', strtotime('- 1 days', strtotime($this->settings['selectedDay']))) . '"><i class="fas fa-angle-left previousBtn"></i></a>
+                <div>' . strftime('%A %e %B %Y', strtotime($this->settings['selectedDay'])) . '</div>
+                <a href="./?date=' . date('Y-m-d', strtotime('+ 1 days', strtotime($this->settings['selectedDay']))) . '"><i class="fas fa-angle-right nextBtn"></i></a>
             </div>
 
             <div class="playlistContent">
@@ -44,6 +46,9 @@ if( ! class_exists( 'Playlist' )) {
          */
         public function loadPlaylistForDay($atts) {
 
+            // Connect to the database
+            $this->connect();
+
             // Check if attributes are set, otherwise, use the default value
             $atts = shortcode_atts(
                 array(
@@ -51,26 +56,18 @@ if( ! class_exists( 'Playlist' )) {
                     'start' => 0
                 ), $atts, 'ra-playlist');
 
-            // Set default date
-            $this->settings["selectedDate"] = (!is_null($_GET['date'])) ? $_GET['date'] : date('Y-m-d');
-
-            // Set the correct URL's for the API
-            $this->settings['songsApiUri'] = $this->settings['songsApiUri'] . $this->settings['selectedDate'];
-            $this->settings['showsApiUri'] = $this->settings['showsApiUri'] . $this->settings['selectedDate']; 
+            // Get the songs by date
+            $selectSongs = $this->selectSongsByDate();
 
             // Create the header for the page
             $this->createHeader();
-            
-            // Get the songs from date
-            $songsData = $this->getSongsFromDate();
-            $songs = json_decode($songsData['songs']);
 
-            // Check if there was an error
-            if(!$songsData['status']){
-                $this->printError();
-            } else {
-                $this->printSongs($songs);
+            // Check if everything worked as planned
+            if(!$selectSongs) {
+                die($this->printError());
             }
+
+            $this->printSongs($this->songs);
 
             // Create the closing tag
             print('
@@ -82,38 +79,40 @@ if( ! class_exists( 'Playlist' )) {
         /**
          * Get the songs for a specific date
          */
-        private function getSongsFromDate() {
+        private function selectSongsByDate() {
 
-            // Create the Curl
-            $c = curl_init();
-            curl_setopt($c, CURLOPT_URL, $this->settings['songsApiUri']);
-            curl_setopt($c, CURLOPT_RETURNTRANSFER, 1);
+            // Wrap in a try to chatch all the errors
+            try {
 
-            // Execute the curl
-            $responseBody = curl_exec($c);
+                // Set default date
+                $this->settings["selectedDay"] = ($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 
-            // Close the curl
-            curl_close($c);
+                // Get the next day
+                $this->settings["nextDay"] = date('Y-m-d', strtotime('+1 day', strtotime($this->settings["selectedDay"])));
+                
+                // Get the songs from a specific date
+                $query = 'SELECT songLibrary.artist, songLibrary.title, songLibrary.cover, songHistory.start FROM songHistory INNER JOIN songLibrary ON songHistory.trackGuid = songLibrary.trackGuid WHERE songHistory.start > ? AND songHistory.start < ? ORDER BY songHistory.start ASC';
 
-            if ($responseBody === false) {
-                return array("status" => false,  "message" => curl_error($c));
+                // Prepare the query
+                $sth = $this->conn->prepare($query);
+
+                // Execute the query
+                $sth->execute(array($this->settings["selectedDay"], $this->settings["nextDay"]));
+
+                // Get the songs from the query
+                $this->songs = $sth->fetchAll(PDO::FETCH_ASSOC);
+
+                // Default return     
+                return true;
+
+            } catch(Exception $e) {
+
+                // Return an error
+                return false;
+
             }
 
-            // Return the body         
-            return array("status" => true,  "songs" => $responseBody);
 
-        }
-
-        /**
-         * Print an error when needed
-         */
-        private function printError() {
-            print('
-            <div class="errorBox">
-                <h2>Uhoh</h2>
-                <p>Het lijkt erop dat het even niet mogelijk is om de songs op te halen. Probeer later opnieuw</p>
-            </div>
-            ');
         }
         
         /**
@@ -126,20 +125,33 @@ if( ! class_exists( 'Playlist' )) {
                 print('
                 <div class="songItem">
                     <div class="songItem--time">
-                        ' . date('H:i', strtotime($song->startTime)) . '
+                        ' . date('H:i', strtotime($song['start'])) . '
                     </div>
                     <div class="songItem--cover">
-                        <img src="data:image/png;charset=utf-8;base64,' . $song->cover . '">
+                        <img src="data:image/png;charset=utf-8;base64,' . $song['cover'] . '">
                     </div>
                     <div class="songItem--content">
                         <div>
-                            <p class="artist">' . $song->artist . '</p>
-                            <p class="title">' . $song->title . '</p>
+                            <p class="artist">' . $song['artist'] . '</p>
+                            <p class="title">' . $song['title'] . '</p>
                         </div>
                     </div>
                 </div>
                 ');
             }
+        }
+
+        /**
+         * Print an error when needed
+         */
+        private function printError() {
+            print('
+                <div class="errorBox">
+                    <h2>Uhoh</h2>
+                    <p>Het lijkt erop dat het even niet mogelijk is om de songs op te halen. Probeer later opnieuw</p>
+                </div>
+            </div>
+            ');
         }
 
     }
