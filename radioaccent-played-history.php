@@ -10,8 +10,9 @@
   Text Domain: radioaccent-played-history
 */
 
-// Set locale for text
+// Set locale for text & datezone
 setlocale(LC_ALL, 'nl_BE');
+date_default_timezone_set('Europe/Brussels');
 
 // Autoload included classes
 spl_autoload_register( function( $class_name ) {
